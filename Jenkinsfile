@@ -5,7 +5,7 @@ pipeline {
         AWS_REGION = "us-east-1"
         ACCOUNT_ID = "171294308549"
         ECR_REPO = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/devops-app"
-        IMAGE_TAG = "latest"
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
@@ -19,6 +19,14 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t devops-app .'
+            }
+        }
+
+        stage('Trivy Scan') {
+            steps {
+                sh '''
+                trivy image --exit-code 1 --severity CRITICAL devops-app
+                '''
             }
         }
 
@@ -52,12 +60,36 @@ pipeline {
             }
         }
 
+        stage('Approval') {
+            steps {
+                input message: "Approve deployment to EKS?"
+            }
+        }
+
         stage('Deploy to EKS') {
             steps {
                 sh '''
                 kubectl apply -f deployment.yaml
                 '''
             }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                kubectl get pods
+                kubectl get svc
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline executed successfully 🚀"
+        }
+        failure {
+            echo "Pipeline failed ❌"
         }
     }
 }
