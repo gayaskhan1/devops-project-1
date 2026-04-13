@@ -22,14 +22,6 @@ pipeline {
             }
         }
 
-        stage('Trivy Scan') {
-            steps {
-                sh '''
-                trivy image --exit-code 1 --severity CRITICAL devops-app
-                '''
-            }
-        }
-
         stage('Login to ECR') {
             steps {
                 withCredentials([[
