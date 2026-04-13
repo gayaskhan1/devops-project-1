@@ -3,7 +3,8 @@ pipeline {
 
     environment {
         AWS_REGION = "us-east-1"
-        ECR_REPO = "your-ecr-repo"
+        ACCOUNT_ID = "171294308549"
+        ECR_REPO = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/devops-app"
         IMAGE_TAG = "latest"
     }
 
@@ -23,9 +24,22 @@ pipeline {
 
         stage('Login to ECR') {
             steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-creds'
+                ]]) {
+                    sh '''
+                    aws ecr get-login-password --region $AWS_REGION \
+                    | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+                    '''
+                }
+            }
+        }
+
+        stage('Tag Image') {
+            steps {
                 sh '''
-                aws ecr get-login-password --region $AWS_REGION \
-                | docker login --username AWS --password-stdin $ECR_REPO
+                docker tag devops-app:latest $ECR_REPO:$IMAGE_TAG
                 '''
             }
         }
@@ -33,15 +47,16 @@ pipeline {
         stage('Push Image') {
             steps {
                 sh '''
-                docker tag devops-app:latest $ECR_REPO:latest
-                docker push $ECR_REPO:latest
+                docker push $ECR_REPO:$IMAGE_TAG
                 '''
             }
         }
 
         stage('Deploy to EKS') {
             steps {
-                sh 'kubectl apply -f k8s/deployment.yaml'
+                sh '''
+                kubectl apply -f deployment.yaml
+                '''
             }
         }
     }
